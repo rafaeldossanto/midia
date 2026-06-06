@@ -10,7 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Objects;
+import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
 
 @Service
 @RequiredArgsConstructor
@@ -57,7 +58,7 @@ public class ArquivoService {
         }
 
         String contentType = arquivo.getContentType();
-        if (Objects.isNull(contentType)) {
+        if (isNull(contentType)) {
             throw new IllegalArgumentException("Tipo do arquivo nao identificado");
         }
 
@@ -72,7 +73,7 @@ public class ArquivoService {
 
     private String extrairNomeArmazenado(String nomeOriginal) {
         String extensao = "";
-        if (Objects.nonNull(nomeOriginal) && nomeOriginal.contains(".")) {
+        if (nonNull(nomeOriginal) && nomeOriginal.contains(".")) {
             extensao = nomeOriginal.substring(nomeOriginal.lastIndexOf("."));
         }
         return java.util.UUID.randomUUID() + extensao;
