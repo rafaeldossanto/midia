@@ -76,4 +76,6 @@ public class ArquivoService {
         if (nonNull(nomeOriginal) && nomeOriginal.contains(".")) {
             extensao = nomeOriginal.substring(nomeOriginal.lastIndexOf("."));
         }
-        return java.util
+        return java.util.UUID.randomUUID() + extensao;
+    }
+}
