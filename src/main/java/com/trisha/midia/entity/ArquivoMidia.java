@@ -49,6 +49,10 @@ public class ArquivoMidia {
     @Column(nullable = false)
     private String url;
 
+    /** Quem fez o upload — so o dono pode apagar o arquivo. */
+    @Column(name = "proprietario_id")
+    private String proprietarioId;
+
     @Column(nullable = false)
     private LocalDateTime criadoEm;
 }

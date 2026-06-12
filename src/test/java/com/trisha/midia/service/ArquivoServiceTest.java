@@ -36,14 +36,14 @@ class ArquivoServiceTest {
     private ArquivoService service;
 
     @Test
-    @DisplayName("upload deve validar, enviar ao MinIO e persistir metadados")
+    @DisplayName("upload deve validar, enviar ao MinIO e persistir metadados com o dono")
     void deveFazerUpload() {
         MultipartFile foto = ArquivoStub.umaFoto();
         when(minioService.upload(anyString(), any(MultipartFile.class))).thenReturn(ArquivoStub.URL);
         when(minioService.getBucket()).thenReturn(ArquivoStub.BUCKET);
         when(repository.save(any(ArquivoMidia.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ArquivoResponse response = service.upload(foto, TipoArquivo.FOTO);
+        ArquivoResponse response = service.upload(foto, TipoArquivo.FOTO, ArquivoStub.PROPRIETARIO_ID);
 
         assertThat(response.url()).isEqualTo(ArquivoStub.URL);
         assertThat(response.tipo()).isEqualTo(TipoArquivo.FOTO);
@@ -60,7 +60,7 @@ class ArquivoServiceTest {
         when(minioService.getBucket()).thenReturn(ArquivoStub.BUCKET);
         when(repository.save(any(ArquivoMidia.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ArquivoResponse response = service.upload(video, TipoArquivo.VIDEO);
+        ArquivoResponse response = service.upload(video, TipoArquivo.VIDEO, ArquivoStub.PROPRIETARIO_ID);
 
         assertThat(response.tipo()).isEqualTo(TipoArquivo.VIDEO);
     }
@@ -68,7 +68,7 @@ class ArquivoServiceTest {
     @Test
     @DisplayName("upload deve falhar com arquivo vazio")
     void deveFalharArquivoVazio() {
-        assertThatThrownBy(() -> service.upload(ArquivoStub.umArquivoVazio(), TipoArquivo.FOTO))
+        assertThatThrownBy(() -> service.upload(ArquivoStub.umArquivoVazio(), TipoArquivo.FOTO, ArquivoStub.PROPRIETARIO_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Arquivo vazio");
 
@@ -79,7 +79,7 @@ class ArquivoServiceTest {
     @Test
     @DisplayName("upload deve falhar quando content-type nao identificado")
     void deveFalharSemContentType() {
-        assertThatThrownBy(() -> service.upload(ArquivoStub.umArquivoSemContentType(), TipoArquivo.FOTO))
+        assertThatThrownBy(() -> service.upload(ArquivoStub.umArquivoSemContentType(), TipoArquivo.FOTO, ArquivoStub.PROPRIETARIO_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Tipo do arquivo nao identificado");
 
@@ -89,7 +89,7 @@ class ArquivoServiceTest {
     @Test
     @DisplayName("upload deve falhar quando FOTO recebe arquivo que nao e imagem")
     void deveFalharFotoComTipoErrado() {
-        assertThatThrownBy(() -> service.upload(ArquivoStub.umVideo(), TipoArquivo.FOTO))
+        assertThatThrownBy(() -> service.upload(ArquivoStub.umVideo(), TipoArquivo.FOTO, ArquivoStub.PROPRIETARIO_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Tipo FOTO espera um arquivo de imagem");
 
@@ -99,7 +99,7 @@ class ArquivoServiceTest {
     @Test
     @DisplayName("upload deve falhar quando VIDEO recebe arquivo que nao e video")
     void deveFalharVideoComTipoErrado() {
-        assertThatThrownBy(() -> service.upload(ArquivoStub.umaFoto(), TipoArquivo.VIDEO))
+        assertThatThrownBy(() -> service.upload(ArquivoStub.umaFoto(), TipoArquivo.VIDEO, ArquivoStub.PROPRIETARIO_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Tipo VIDEO espera um arquivo de video");
 
@@ -127,15 +127,29 @@ class ArquivoServiceTest {
     }
 
     @Test
-    @DisplayName("delete deve remover do MinIO e do banco")
+    @DisplayName("delete deve remover do MinIO e do banco quando e o dono")
     void deveDeletar() {
         ArquivoMidia arquivo = ArquivoStub.umArquivo().build();
         when(repository.findById(ArquivoStub.ID)).thenReturn(Optional.of(arquivo));
 
-        service.delete(ArquivoStub.ID);
+        service.delete(ArquivoStub.ID, ArquivoStub.PROPRIETARIO_ID);
 
         verify(minioService).delete(arquivo.getNomeArmazenado());
         verify(repository).delete(arquivo);
+    }
+
+    @Test
+    @DisplayName("delete deve falhar quando nao e o dono")
+    void deveFalharDeletarNaoDono() {
+        ArquivoMidia arquivo = ArquivoStub.umArquivo().build();
+        when(repository.findById(ArquivoStub.ID)).thenReturn(Optional.of(arquivo));
+
+        assertThatThrownBy(() -> service.delete(ArquivoStub.ID, "outro-usuario"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("nao e o dono");
+
+        verify(minioService, never()).delete(anyString());
+        verify(repository, never()).delete(any());
     }
 
     @Test
@@ -143,7 +157,7 @@ class ArquivoServiceTest {
     void deveFalharDeletarInexistente() {
         when(repository.findById("inexistente")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.delete("inexistente"))
+        assertThatThrownBy(() -> service.delete("inexistente", ArquivoStub.PROPRIETARIO_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Arquivo nao encontrado");
 

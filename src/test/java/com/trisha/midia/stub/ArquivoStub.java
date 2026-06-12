@@ -15,6 +15,7 @@ public final class ArquivoStub {
     public static final String ID = "arquivo-1";
     public static final String BUCKET = "trilha-midia";
     public static final String URL = "https://minio/trilha-midia/arquivo.jpg?presigned";
+    public static final String PROPRIETARIO_ID = "usuario-1";
 
     private ArquivoStub() {
     }
@@ -29,6 +30,7 @@ public final class ArquivoStub {
                 .tamanhoBytes(1024L)
                 .bucket(BUCKET)
                 .url(URL)
+                .proprietarioId(PROPRIETARIO_ID)
                 .criadoEm(LocalDateTime.now());
     }
 

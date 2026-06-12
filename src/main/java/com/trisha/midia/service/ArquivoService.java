@@ -21,7 +21,7 @@ public class ArquivoService {
     private final MinioService minioService;
     private final ArquivoMidiaRepository repository;
 
-    public ArquivoResponse upload(MultipartFile arquivo, TipoArquivo tipo) {
+    public ArquivoResponse upload(MultipartFile arquivo, TipoArquivo tipo, String proprietarioId) {
         log.info("Iniciando upload: {} ({})", arquivo.getOriginalFilename(), tipo);
 
         validarArquivo(arquivo, tipo);
@@ -29,7 +29,7 @@ public class ArquivoService {
         String nomeArmazenado = extrairNomeArmazenado(arquivo.getOriginalFilename());
         String url = minioService.upload(nomeArmazenado, arquivo);
 
-        ArquivoMidia entidade = ArquivoMapper.toEntity(arquivo, tipo, nomeArmazenado, url, minioService.getBucket());
+        ArquivoMidia entidade = ArquivoMapper.toEntity(arquivo, tipo, nomeArmazenado, url, minioService.getBucket(), proprietarioId);
         repository.save(entidade);
 
         log.info("Arquivo salvo com id: {}", entidade.getId());
@@ -40,8 +40,13 @@ public class ArquivoService {
         return ArquivoMapper.toResponse(findById(id));
     }
 
-    public void delete(String id) {
+    public void delete(String id, String usuarioId) {
         ArquivoMidia arquivo = findById(id);
+
+        if (!usuarioId.equals(arquivo.getProprietarioId())) {
+            throw new IllegalArgumentException("Voce nao e o dono deste arquivo");
+        }
+
         minioService.delete(arquivo.getNomeArmazenado());
         repository.delete(arquivo);
         log.info("Arquivo {} deletado", id);

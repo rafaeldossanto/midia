@@ -1,5 +1,6 @@
 package com.trisha.midia.controller;
 
+import com.trisha.midia.auth.UsuarioAutenticado;
 import com.trisha.midia.model.dto.response.ArquivoResponse;
 import com.trisha.midia.model.enums.TipoArquivo;
 import com.trisha.midia.service.ArquivoService;
@@ -21,9 +22,10 @@ public class ArquivoController {
     private final ArquivoService arquivoService;
 
     @PostMapping("/upload")
-    public ArquivoResponse upload(@RequestParam("arquivo") MultipartFile arquivo,
+    public ArquivoResponse upload(UsuarioAutenticado usuario,
+                                  @RequestParam("arquivo") MultipartFile arquivo,
                                   @RequestParam("tipo") TipoArquivo tipo) {
-        return arquivoService.upload(arquivo, tipo);
+        return arquivoService.upload(arquivo, tipo, usuario.id());
     }
 
     @GetMapping("/{id}")
@@ -32,7 +34,7 @@ public class ArquivoController {
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable String id) {
-        arquivoService.delete(id);
+    public void delete(UsuarioAutenticado usuario, @PathVariable String id) {
+        arquivoService.delete(id, usuario.id());
     }
 }

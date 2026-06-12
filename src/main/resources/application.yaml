@@ -23,6 +23,13 @@ spring:
     enabled: true
     baseline-on-migrate: true
 
+  # Resource server: o front sobe arquivo direto aqui, entao validar o Bearer e essencial.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${JWKS_URI:http://localhost:8080/oauth2/jwks}
+
   servlet:
     multipart:
       max-file-size: 50MB

@@ -3,17 +3,17 @@ package com.trisha.midia.mapper;
 import com.trisha.midia.entity.ArquivoMidia;
 import com.trisha.midia.model.dto.response.ArquivoResponse;
 import com.trisha.midia.model.enums.TipoArquivo;
+import lombok.experimental.UtilityClass;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+@UtilityClass
 public class ArquivoMapper {
 
-    private ArquivoMapper() {}
-
-    public static ArquivoMidia toEntity(MultipartFile arquivo, TipoArquivo tipo,
-                                        String nomeArmazenado, String url, String bucket) {
+    public static ArquivoMidia toEntity(MultipartFile arquivo, TipoArquivo tipo, String nomeArmazenado,
+                                        String url, String bucket, String proprietarioId) {
         return ArquivoMidia.builder()
                 .id(UUID.randomUUID().toString())
                 .nomeOriginal(arquivo.getOriginalFilename())
@@ -23,6 +23,7 @@ public class ArquivoMapper {
                 .tamanhoBytes(arquivo.getSize())
                 .bucket(bucket)
                 .url(url)
+                .proprietarioId(proprietarioId)
                 .criadoEm(LocalDateTime.now())
                 .build();
     }
