@@ -43,3 +43,8 @@ minio:
 
 server:
   port: 8083
+
+# traceId (correlacao de requisicoes) recebido da borda no header X-Trace-Id.
+logging:
+  pattern:
+    level: "%5p [trace:%X{traceId:-}]"

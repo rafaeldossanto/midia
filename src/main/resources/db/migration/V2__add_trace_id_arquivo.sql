@@ -1,0 +1,1 @@
+ALTER TABLE arquivo_midia ADD COLUMN IF NOT EXISTS trace_id VARCHAR(16);

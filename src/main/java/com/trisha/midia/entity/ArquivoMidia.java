@@ -1,11 +1,13 @@
 package com.trisha.midia.entity;
 
 import com.trisha.midia.model.enums.TipoArquivo;
+import com.trisha.midia.trace.TraceContext;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -55,4 +57,14 @@ public class ArquivoMidia {
 
     @Column(nullable = false)
     private LocalDateTime criadoEm;
+
+    @Column(name = "trace_id")
+    private String traceId;
+
+    @PrePersist
+    void aoCriar() {
+        if (traceId == null) {
+            traceId = TraceContext.atual();
+        }
+    }
 }
