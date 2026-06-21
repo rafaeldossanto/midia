@@ -39,11 +39,11 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Erro inesperado");
     }
 
-    private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String mensagem) {
+    private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String message) {
         Map<String, Object> body = new HashMap<>();
         body.put("status", status.value());
         body.put("erro", status.getReasonPhrase());
-        body.put("mensagem", mensagem);
+        body.put("mensagem", message);
         body.put("timestamp", LocalDateTime.now().toString());
         return ResponseEntity.status(status).body(body);
     }

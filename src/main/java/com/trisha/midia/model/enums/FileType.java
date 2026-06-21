@@ -1,6 +1,6 @@
 package com.trisha.midia.model.enums;
 
-public enum TipoArquivo {
+public enum FileType {
     FOTO,
     VIDEO
 }

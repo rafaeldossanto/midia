@@ -1,6 +1,6 @@
 package com.trisha.midia.entity;
 
-import com.trisha.midia.model.enums.TipoArquivo;
+import com.trisha.midia.model.enums.FileType;
 import com.trisha.midia.trace.TraceContext;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -24,26 +24,26 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ArquivoMidia {
+public class MediaFile {
 
     @Id
     private String id;
 
-    @Column(nullable = false)
-    private String nomeOriginal;
+    @Column(name = "nome_original", nullable = false)
+    private String originalName;
 
-    @Column(nullable = false)
-    private String nomeArmazenado;
+    @Column(name = "nome_armazenado", nullable = false)
+    private String storedName;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private TipoArquivo tipo;
+    @Column(name = "tipo", nullable = false)
+    private FileType type;
 
     @Column(nullable = false)
     private String contentType;
 
-    @Column(nullable = false)
-    private Long tamanhoBytes;
+    @Column(name = "tamanho_bytes", nullable = false)
+    private Long sizeBytes;
 
     @Column(nullable = false)
     private String bucket;
@@ -53,18 +53,18 @@ public class ArquivoMidia {
 
     /** Quem fez o upload — so o dono pode apagar o arquivo. */
     @Column(name = "proprietario_id")
-    private String proprietarioId;
+    private String ownerId;
 
-    @Column(nullable = false)
-    private LocalDateTime criadoEm;
+    @Column(name = "criado_em", nullable = false)
+    private LocalDateTime createdAt;
 
     @Column(name = "trace_id")
     private String traceId;
 
     @PrePersist
-    void aoCriar() {
+    void onCreate() {
         if (traceId == null) {
-            traceId = TraceContext.atual();
+            traceId = TraceContext.current();
         }
     }
 }

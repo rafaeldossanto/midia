@@ -24,42 +24,42 @@ public class MinioService {
     @Value("${minio.bucket}")
     private String bucket;
 
-    public String upload(String nomeArmazenado, MultipartFile arquivo) {
-        try (InputStream inputStream = arquivo.getInputStream()) {
+    public String upload(String storedName, MultipartFile file) {
+        try (InputStream inputStream = file.getInputStream()) {
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(bucket)
-                            .object(nomeArmazenado)
-                            .stream(inputStream, arquivo.getSize(), -1)
-                            .contentType(arquivo.getContentType())
+                            .object(storedName)
+                            .stream(inputStream, file.getSize(), -1)
+                            .contentType(file.getContentType())
                             .build()
             );
 
             String url = minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .bucket(bucket)
-                            .object(nomeArmazenado)
+                            .object(storedName)
                             .method(Method.GET)
                             .expiry(7, TimeUnit.DAYS)
                             .build()
             );
 
-            log.info("Arquivo {} enviado ao MinIO com sucesso", nomeArmazenado);
+            log.info("Arquivo {} enviado ao MinIO com sucesso", storedName);
             return url;
         } catch (Exception e) {
             throw new RuntimeException("Erro ao enviar arquivo ao MinIO: " + e.getMessage(), e);
         }
     }
 
-    public void delete(String nomeArmazenado) {
+    public void delete(String storedName) {
         try {
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
                             .bucket(bucket)
-                            .object(nomeArmazenado)
+                            .object(storedName)
                             .build()
             );
-            log.info("Arquivo {} removido do MinIO", nomeArmazenado);
+            log.info("Arquivo {} removido do MinIO", storedName);
         } catch (Exception e) {
             throw new RuntimeException("Erro ao remover arquivo do MinIO: " + e.getMessage(), e);
         }

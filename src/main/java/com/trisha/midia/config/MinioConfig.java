@@ -31,16 +31,16 @@ public class MinioConfig {
                 .credentials(accessKey, secretKey)
                 .build();
 
-        criarBucketSeNaoExiste(client);
+        createBucketIfAbsent(client);
         return client;
     }
 
-    private void criarBucketSeNaoExiste(MinioClient client) {
+    private void createBucketIfAbsent(MinioClient client) {
         try {
-            boolean existe = client.bucketExists(
+            boolean exists = client.bucketExists(
                     BucketExistsArgs.builder().bucket(bucket).build()
             );
-            if (!existe) {
+            if (!exists) {
                 client.makeBucket(
                         MakeBucketArgs.builder().bucket(bucket).build()
                 );

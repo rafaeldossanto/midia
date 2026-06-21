@@ -1,6 +1,6 @@
 package com.trisha.midia.service;
 
-import com.trisha.midia.stub.ArquivoStub;
+import com.trisha.midia.stub.FileStub;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
@@ -34,25 +34,25 @@ class MinioServiceTest {
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(service, "bucket", ArquivoStub.BUCKET);
+        ReflectionTestUtils.setField(service, "bucket", FileStub.BUCKET);
     }
 
     @Test
     @DisplayName("getBucket deve retornar o bucket configurado")
     void deveRetornarBucket() {
-        assertThat(service.getBucket()).isEqualTo(ArquivoStub.BUCKET);
+        assertThat(service.getBucket()).isEqualTo(FileStub.BUCKET);
     }
 
     @Test
     @DisplayName("upload deve enviar objeto e devolver a presigned URL")
     void deveFazerUpload() throws Exception {
-        MultipartFile foto = ArquivoStub.umaFoto();
+        MultipartFile foto = FileStub.aPhoto();
         when(minioClient.getPresignedObjectUrl(any(GetPresignedObjectUrlArgs.class)))
-                .thenReturn(ArquivoStub.URL);
+                .thenReturn(FileStub.URL);
 
         String url = service.upload("uuid-gerado.jpg", foto);
 
-        assertThat(url).isEqualTo(ArquivoStub.URL);
+        assertThat(url).isEqualTo(FileStub.URL);
         verify(minioClient).putObject(any(PutObjectArgs.class));
         verify(minioClient).getPresignedObjectUrl(any(GetPresignedObjectUrlArgs.class));
     }
@@ -60,7 +60,7 @@ class MinioServiceTest {
     @Test
     @DisplayName("upload deve encapsular falha do MinIO em RuntimeException")
     void deveFalharUpload() throws Exception {
-        MultipartFile foto = ArquivoStub.umaFoto();
+        MultipartFile foto = FileStub.aPhoto();
         when(minioClient.putObject(any(PutObjectArgs.class)))
                 .thenThrow(new RuntimeException("conexao recusada"));
 
