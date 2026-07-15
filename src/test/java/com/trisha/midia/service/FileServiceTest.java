@@ -145,7 +145,7 @@ class FileServiceTest {
         when(repository.findById(FileStub.ID)).thenReturn(Optional.of(file));
 
         assertThatThrownBy(() -> service.delete(FileStub.ID, "outro-usuario"))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(com.trisha.midia.exception.ForbiddenException.class)
                 .hasMessageContaining("nao e o dono");
 
         verify(minioService, never()).delete(anyString());

@@ -1,6 +1,7 @@
 package com.trisha.midia.service;
 
 import com.trisha.midia.entity.MediaFile;
+import com.trisha.midia.exception.ForbiddenException;
 import com.trisha.midia.mapper.FileMapper;
 import com.trisha.midia.model.dto.response.FileResponse;
 import com.trisha.midia.model.enums.FileType;
@@ -44,7 +45,7 @@ public class FileService {
         MediaFile file = findById(id);
 
         if (!userId.equals(file.getOwnerId())) {
-            throw new IllegalArgumentException("Voce nao e o dono deste arquivo");
+            throw new ForbiddenException("Voce nao e o dono deste arquivo");
         }
 
         minioService.delete(file.getStoredName());
