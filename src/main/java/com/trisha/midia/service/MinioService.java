@@ -14,6 +14,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
 import java.util.concurrent.TimeUnit;
 
+ //todo - retirar os try catchs daqui para mostrarem o erro real quando der e nao mascarar, caso possivel.
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
