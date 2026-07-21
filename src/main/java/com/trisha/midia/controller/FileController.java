@@ -34,7 +34,8 @@ public class FileController {
     }
 
     @DeleteMapping("/{id}")
-    public void delete(AuthenticatedUser user, @PathVariable String id) {
+    public void delete(AuthenticatedUser user,
+                       @PathVariable String id) {
         fileService.delete(id, user.id());
     }
 }
