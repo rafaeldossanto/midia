@@ -6,6 +6,7 @@ import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -13,8 +14,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.util.concurrent.TimeUnit;
-
- //todo - retirar os try catchs daqui para mostrarem o erro real quando der e nao mascarar, caso possivel.
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +25,7 @@ public class MinioService {
     @Value("${minio.bucket}")
     private String bucket;
 
+    @SneakyThrows
     public String upload(String storedName, MultipartFile file) {
         try (InputStream inputStream = file.getInputStream()) {
             minioClient.putObject(
@@ -48,23 +48,18 @@ public class MinioService {
 
             log.info("Arquivo {} enviado ao MinIO com sucesso", storedName);
             return url;
-        } catch (Exception e) {
-            throw new RuntimeException("Erro ao enviar arquivo ao MinIO: " + e.getMessage(), e);
         }
     }
 
+    @SneakyThrows
     public void delete(String storedName) {
-        try {
-            minioClient.removeObject(
-                    RemoveObjectArgs.builder()
-                            .bucket(bucket)
-                            .object(storedName)
-                            .build()
-            );
-            log.info("Arquivo {} removido do MinIO", storedName);
-        } catch (Exception e) {
-            throw new RuntimeException("Erro ao remover arquivo do MinIO: " + e.getMessage(), e);
-        }
+        minioClient.removeObject(
+                RemoveObjectArgs.builder()
+                        .bucket(bucket)
+                        .object(storedName)
+                        .build()
+        );
+        log.info("Arquivo {} removido do MinIO", storedName);
     }
 
     public String getBucket() {
