@@ -41,6 +41,11 @@ minio:
   secret-key: ${MINIO_SECRET_KEY}
   bucket: trilha-midia
 
+# Origens liberadas no CORS (o front web sobe arquivo direto aqui, fora do BFF).
+# Dev: localhost. Em prod, defina CORS_ALLOWED_ORIGINS com o dominio real.
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
+
 server:
   port: 8083
 

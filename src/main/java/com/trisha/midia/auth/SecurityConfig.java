@@ -1,5 +1,6 @@
 package com.trisha.midia.auth;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -15,11 +16,18 @@ import java.util.List;
 /**
  * Resource server stateless. Como a Midia e exposta direto ao front (upload nao
  * passa pelo BFF), validar o Bearer aqui e essencial. Tudo exige autenticacao,
- * exceto health. O CORS libera o front web servido em localhost (Flutter web
- * em dev); origens de producao entram aqui quando existirem.
+ * exceto health. O CORS libera as origens do front web configuradas em
+ * cors.allowed-origins (dev: localhost; prod: dominio real via
+ * CORS_ALLOWED_ORIGINS).
  */
 @Configuration
 public class SecurityConfig {
+
+    private final List<String> allowedOrigins;
+
+    public SecurityConfig(@Value("${cors.allowed-origins}") List<String> allowedOrigins) {
+        this.allowedOrigins = allowedOrigins;
+    }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -37,7 +45,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
+        config.setAllowedOriginPatterns(allowedOrigins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
 

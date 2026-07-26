@@ -58,15 +58,17 @@ class MinioServiceTest {
     }
 
     @Test
-    @DisplayName("upload deve encapsular falha do MinIO em RuntimeException")
+    @DisplayName("upload deve propagar o erro real do MinIO, sem mascarar")
     void deveFalharUpload() throws Exception {
         MultipartFile foto = FileStub.aPhoto();
         when(minioClient.putObject(any(PutObjectArgs.class)))
                 .thenThrow(new RuntimeException("conexao recusada"));
 
+        // O servico nao envelopa mais a excecao: a causa real chega intacta ao
+        // GlobalExceptionHandler, que loga o stack completo e devolve 500.
         assertThatThrownBy(() -> service.upload("uuid-gerado.jpg", foto))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Erro ao enviar arquivo ao MinIO");
+                .hasMessage("conexao recusada");
     }
 
     @Test
@@ -78,13 +80,13 @@ class MinioServiceTest {
     }
 
     @Test
-    @DisplayName("delete deve encapsular falha do MinIO em RuntimeException")
+    @DisplayName("delete deve propagar o erro real do MinIO, sem mascarar")
     void deveFalharDelete() throws Exception {
         doThrow(new RuntimeException("objeto inexistente"))
                 .when(minioClient).removeObject(any(RemoveObjectArgs.class));
 
         assertThatThrownBy(() -> service.delete("uuid-gerado.jpg"))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Erro ao remover arquivo do MinIO");
+                .hasMessage("objeto inexistente");
     }
 }
