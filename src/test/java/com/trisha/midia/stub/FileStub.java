@@ -59,4 +59,22 @@ public final class FileStub {
         return new MockMultipartFile(
                 "arquivo", "arquivo.bin", null, "conteudo".getBytes());
     }
+
+    /** SVG com script — e image/*, mas nao pode ser aceito (XSS armazenado). */
+    public static MultipartFile anSvg() {
+        return new MockMultipartFile("arquivo", "payload.svg", "image/svg+xml",
+                "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>".getBytes());
+    }
+
+    /** Imagem valida com o content-type informado (para testar parametros do header). */
+    public static MultipartFile aPhotoWithContentType(String contentType) {
+        return new MockMultipartFile(
+                "arquivo", "foto.jpg", contentType, "conteudo-imagem".getBytes());
+    }
+
+    /** Imagem valida com o nome original informado (para testar sanitizacao). */
+    public static MultipartFile aPhotoNamed(String originalName) {
+        return new MockMultipartFile(
+                "arquivo", originalName, "image/jpeg", "conteudo-imagem".getBytes());
+    }
 }

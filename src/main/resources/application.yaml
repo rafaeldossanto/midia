@@ -50,6 +50,13 @@ midia:
   # API, que o reverse proxy roteia para ca.
   public-url: ${MIDIA_PUBLIC_URL:http://localhost:8083}
 
+  # Travas de abuso do upload. O binario vem direto do front, sem passar pelo
+  # BFF — portanto sem o rate limit por IP da borda. Estes limites impedem que
+  # uma conta autenticada encha o disco da maquina.
+  upload:
+    max-por-hora: ${UPLOAD_MAX_POR_HORA:60}
+    cota-mb: ${UPLOAD_COTA_MB:2048}
+
 # Origens liberadas no CORS (o front web sobe arquivo direto aqui, fora do BFF).
 # Dev: localhost. Em prod, defina CORS_ALLOWED_ORIGINS com o dominio real.
 cors:

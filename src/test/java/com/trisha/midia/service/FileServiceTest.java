@@ -1,6 +1,7 @@
 package com.trisha.midia.service;
 
 import com.trisha.midia.entity.MediaFile;
+import com.trisha.midia.exception.QuotaExceededException;
 import com.trisha.midia.model.dto.response.FileContent;
 import com.trisha.midia.model.dto.response.FileResponse;
 import com.trisha.midia.model.enums.FileType;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,6 +46,8 @@ class FileServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(service, "publicBaseUrl", FileStub.PUBLIC_BASE_URL);
+        ReflectionTestUtils.setField(service, "maxUploadsPerHour", 60);
+        ReflectionTestUtils.setField(service, "storageQuotaMb", 2048L);
     }
 
     @Test
@@ -128,7 +132,7 @@ class FileServiceTest {
     void shouldFailPhotoWithWrongType() {
         assertThatThrownBy(() -> service.upload(FileStub.aVideo(), FileType.FOTO, FileStub.OWNER_ID))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Tipo FOTO espera um arquivo de imagem");
+                .hasMessageContaining("Tipo FOTO nao aceita 'video/mp4'");
 
         verify(minioService, never()).upload(anyString(), any());
     }
@@ -138,7 +142,76 @@ class FileServiceTest {
     void shouldFailVideoWithWrongType() {
         assertThatThrownBy(() -> service.upload(FileStub.aPhoto(), FileType.VIDEO, FileStub.OWNER_ID))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Tipo VIDEO espera um arquivo de video");
+                .hasMessageContaining("Tipo VIDEO nao aceita 'image/jpeg'");
+
+        verify(minioService, never()).upload(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("upload deve recusar SVG, mesmo sendo image/*")
+    void shouldRejectSvg() {
+        // SVG pode carregar JavaScript. Como o binario e servido por um endpoint
+        // publico, um SVG aceito viraria XSS armazenado no dominio da API — por
+        // isso a validacao e whitelist, e nao um startsWith("image/").
+        assertThatThrownBy(() -> service.upload(FileStub.anSvg(), FileType.FOTO, FileStub.OWNER_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("image/svg+xml");
+
+        verify(minioService, never()).upload(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("upload deve aceitar content-type com parametro (charset)")
+    void shouldAcceptContentTypeWithParameters() {
+        when(minioService.getBucket()).thenReturn(FileStub.BUCKET);
+        when(repository.save(any(MediaFile.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        FileResponse response = service.upload(
+                FileStub.aPhotoWithContentType("image/jpeg; charset=binary"),
+                FileType.FOTO, FileStub.OWNER_ID);
+
+        assertThat(response.type()).isEqualTo(FileType.FOTO);
+    }
+
+    @Test
+    @DisplayName("upload deve sanitizar a extensao vinda do nome original")
+    void shouldSanitizeExtension() {
+        // Extensao vem do cliente: um nome como "a.jpg/../x" criaria prefixo de
+        // caminho dentro do bucket.
+        when(minioService.getBucket()).thenReturn(FileStub.BUCKET);
+        when(repository.save(any(MediaFile.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.upload(FileStub.aPhotoNamed("foto.jpg/../../evil"), FileType.FOTO, FileStub.OWNER_ID);
+
+        ArgumentCaptor<String> storedName = ArgumentCaptor.forClass(String.class);
+        verify(minioService).upload(storedName.capture(), any(MultipartFile.class));
+        assertThat(storedName.getValue()).doesNotContain("/", "..");
+    }
+
+    @Test
+    @DisplayName("upload deve recusar acima do limite de envios por hora")
+    void shouldRejectAboveHourlyLimit() {
+        // O upload nao passa pelo BFF, logo nao tem o rate limit por IP da borda.
+        when(repository.countByOwnerIdAndCreatedAtAfter(eq(FileStub.OWNER_ID), any()))
+                .thenReturn(60L);
+
+        assertThatThrownBy(() -> service.upload(FileStub.aPhoto(), FileType.FOTO, FileStub.OWNER_ID))
+                .isInstanceOf(QuotaExceededException.class)
+                .hasMessageContaining("60 envios por hora");
+
+        verify(minioService, never()).upload(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("upload deve recusar quando estoura a cota de armazenamento")
+    void shouldRejectAboveStorageQuota() {
+        when(repository.countByOwnerIdAndCreatedAtAfter(eq(FileStub.OWNER_ID), any())).thenReturn(1L);
+        when(repository.sumSizeBytesByOwnerId(FileStub.OWNER_ID))
+                .thenReturn(2048L * 1024L * 1024L); // cota cheia
+
+        assertThatThrownBy(() -> service.upload(FileStub.aPhoto(), FileType.FOTO, FileStub.OWNER_ID))
+                .isInstanceOf(QuotaExceededException.class)
+                .hasMessageContaining("Cota de armazenamento");
 
         verify(minioService, never()).upload(anyString(), any());
     }

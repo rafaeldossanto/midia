@@ -21,6 +21,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
+    @ExceptionHandler(QuotaExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleQuota(QuotaExceededException ex) {
+        log.warn("[EXCEPTION] QuotaExceededException: {}", ex.getMessage());
+        return buildResponse(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
         log.warn("[EXCEPTION] IllegalArgumentException: {}", ex.getMessage());

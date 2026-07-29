@@ -2,6 +2,7 @@ package com.trisha.midia.service;
 
 import com.trisha.midia.entity.MediaFile;
 import com.trisha.midia.exception.ForbiddenException;
+import com.trisha.midia.exception.QuotaExceededException;
 import com.trisha.midia.mapper.FileMapper;
 import com.trisha.midia.model.dto.response.FileContent;
 import com.trisha.midia.model.dto.response.FileResponse;
@@ -13,6 +14,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
+import java.util.Locale;
+import java.util.Set;
+
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
@@ -21,6 +26,19 @@ import static java.util.Objects.nonNull;
 @Slf4j
 public class FileService {
 
+    /**
+     * Whitelist de formatos, em vez de aceitar qualquer {@code image/*}. O motivo
+     * e o {@code image/svg+xml}: SVG pode carregar JavaScript e, servido pelo
+     * endpoint publico de conteudo, executaria script no dominio da API — XSS
+     * armazenado, com o arquivo hospedado por nos. Whitelist tambem barra
+     * formatos exoticos que nenhum cliente do app produz.
+     */
+    private static final Set<String> ALLOWED_PHOTO_TYPES =
+            Set.of("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif");
+
+    private static final Set<String> ALLOWED_VIDEO_TYPES =
+            Set.of("video/mp4", "video/quicktime", "video/webm");
+
     private final MinioService minioService;
     private final MediaFileRepository repository;
 
@@ -28,10 +46,17 @@ public class FileService {
     @Value("${midia.public-url}")
     private String publicBaseUrl;
 
+    @Value("${midia.upload.max-por-hora}")
+    private int maxUploadsPerHour;
+
+    @Value("${midia.upload.cota-mb}")
+    private long storageQuotaMb;
+
     public FileResponse upload(MultipartFile file, FileType type, String ownerId) {
         log.info("Iniciando upload: {} ({})", file.getOriginalFilename(), type);
 
         validateFile(file, type);
+        validateQuota(ownerId, file.getSize());
 
         String storedName = extractStoredName(file.getOriginalFilename());
         minioService.upload(storedName, file);
@@ -80,24 +105,63 @@ public class FileService {
             throw new IllegalArgumentException("Arquivo vazio");
         }
 
-        String contentType = file.getContentType();
+        String contentType = normalizeContentType(file.getContentType());
         if (isNull(contentType)) {
             throw new IllegalArgumentException("Tipo do arquivo nao identificado");
         }
 
-        if (FileType.FOTO.equals(type) && !contentType.startsWith("image/")) {
-            throw new IllegalArgumentException("Tipo FOTO espera um arquivo de imagem");
-        }
-
-        if (FileType.VIDEO.equals(type) && !contentType.startsWith("video/")) {
-            throw new IllegalArgumentException("Tipo VIDEO espera um arquivo de video");
+        Set<String> allowed = FileType.FOTO.equals(type) ? ALLOWED_PHOTO_TYPES : ALLOWED_VIDEO_TYPES;
+        if (!allowed.contains(contentType)) {
+            throw new IllegalArgumentException(
+                    "Tipo %s nao aceita '%s'. Formatos aceitos: %s"
+                            .formatted(type, contentType, String.join(", ", allowed)));
         }
     }
 
+    /**
+     * Trava de abuso do upload. O binario vai direto ao servico de Midia, sem
+     * passar pelo BFF — logo, sem o rate limit por IP da borda. Sem estas duas
+     * contas, uma conta autenticada poderia encher o volume do MinIO.
+     */
+    private void validateQuota(String ownerId, long incomingBytes) {
+        long recentUploads = repository.countByOwnerIdAndCreatedAtAfter(
+                ownerId, LocalDateTime.now().minusHours(1));
+        if (recentUploads >= maxUploadsPerHour) {
+            throw new QuotaExceededException(
+                    "Limite de %d envios por hora atingido. Tente novamente mais tarde."
+                            .formatted(maxUploadsPerHour));
+        }
+
+        long storedBytes = repository.sumSizeBytesByOwnerId(ownerId);
+        long quotaBytes = storageQuotaMb * 1024L * 1024L;
+        if (storedBytes + incomingBytes > quotaBytes) {
+            throw new QuotaExceededException(
+                    "Cota de armazenamento de %d MB atingida.".formatted(storageQuotaMb));
+        }
+    }
+
+    /** Descarta parametros (";charset=...") e normaliza caixa antes de comparar. */
+    private String normalizeContentType(String contentType) {
+        if (isNull(contentType) || contentType.isBlank()) {
+            return null;
+        }
+        int separator = contentType.indexOf(';');
+        String base = separator < 0 ? contentType : contentType.substring(0, separator);
+        return base.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Nome no bucket: UUID novo + extensao SANITIZADA do arquivo original. A
+     * extensao vem do cliente, entao so letras e digitos passam — sem isso um
+     * nome como {@code "a.jpg/../x"} viraria prefixo de caminho no bucket.
+     */
     private String extractStoredName(String originalName) {
         String extension = "";
         if (nonNull(originalName) && originalName.contains(".")) {
-            extension = originalName.substring(originalName.lastIndexOf("."));
+            String raw = originalName.substring(originalName.lastIndexOf(".") + 1);
+            if (raw.matches("[A-Za-z0-9]{1,10}")) {
+                extension = "." + raw.toLowerCase(Locale.ROOT);
+            }
         }
         return java.util.UUID.randomUUID() + extension;
     }

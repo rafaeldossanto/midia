@@ -56,6 +56,15 @@ public class FileController {
                 // O conteudo de um id nunca muda (nome no bucket e UUID novo a
                 // cada upload), entao o cache pode ser agressivo.
                 .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable())
+                // O content-type foi declarado pelo cliente no upload. A whitelist
+                // do FileService ja barra svg e afins, mas o nosniff fecha o resto:
+                // impede o browser de ignorar o header e adivinhar o tipo pelo
+                // conteudo (um HTML disfarcado de image/jpeg viraria XSS aqui).
+                .header("X-Content-Type-Options", "nosniff")
+                // Defesa em profundidade: mesmo que algo executavel chegue ao
+                // browser por este endpoint, a CSP nao deixa rodar script nem
+                // carregar recurso externo.
+                .header("Content-Security-Policy", "default-src 'none'; sandbox")
                 .body(new InputStreamResource(content.stream()));
     }
 
