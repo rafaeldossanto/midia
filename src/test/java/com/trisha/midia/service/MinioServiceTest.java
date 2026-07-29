@@ -1,6 +1,7 @@
 package com.trisha.midia.service;
 
 import com.trisha.midia.stub.FileStub;
+import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
@@ -19,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,17 +46,34 @@ class MinioServiceTest {
     }
 
     @Test
-    @DisplayName("upload deve enviar objeto e devolver a presigned URL")
+    @DisplayName("upload deve enviar o objeto ao bucket")
     void deveFazerUpload() throws Exception {
         MultipartFile foto = FileStub.aPhoto();
-        when(minioClient.getPresignedObjectUrl(any(GetPresignedObjectUrlArgs.class)))
-                .thenReturn(FileStub.URL);
 
-        String url = service.upload("uuid-gerado.jpg", foto);
+        service.upload("uuid-gerado.jpg", foto);
 
-        assertThat(url).isEqualTo(FileStub.URL);
         verify(minioClient).putObject(any(PutObjectArgs.class));
-        verify(minioClient).getPresignedObjectUrl(any(GetPresignedObjectUrlArgs.class));
+    }
+
+    @Test
+    @DisplayName("upload nao deve mais assinar URL: o binario e servido pelo proprio servico")
+    void naoDeveGerarPresigned() throws Exception {
+        // A presigned tinha validade maxima de 7 dias e era persistida (e copiada
+        // para Media.url e Region.coverUrl no APP) — passado o prazo, toda foto
+        // quebrava. Agora a URL e derivada do id e nao expira.
+        service.upload("uuid-gerado.jpg", FileStub.aPhoto());
+
+        verify(minioClient, never()).getPresignedObjectUrl(any(GetPresignedObjectUrlArgs.class));
+    }
+
+    @Test
+    @DisplayName("download deve abrir o objeto do bucket")
+    void deveBaixar() throws Exception {
+        when(minioClient.getObject(any(GetObjectArgs.class))).thenReturn(null);
+
+        service.download("uuid-gerado.jpg");
+
+        verify(minioClient).getObject(any(GetObjectArgs.class));
     }
 
     @Test

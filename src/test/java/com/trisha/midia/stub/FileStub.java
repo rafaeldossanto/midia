@@ -14,7 +14,9 @@ public final class FileStub {
 
     public static final String ID = "arquivo-1";
     public static final String BUCKET = "trilha-midia";
-    public static final String URL = "https://minio/trilha-midia/arquivo.jpg?presigned";
+    public static final String PUBLIC_BASE_URL = "https://api.trisha.test";
+    /** URL permanente servida pelo proprio servico — nao expira (era presigned de 7 dias). */
+    public static final String URL = PUBLIC_BASE_URL + "/arquivo/" + ID + "/conteudo";
     public static final String OWNER_ID = "usuario-1";
 
     private FileStub() {

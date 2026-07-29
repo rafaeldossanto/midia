@@ -3,11 +3,13 @@ package com.trisha.midia.service;
 import com.trisha.midia.entity.MediaFile;
 import com.trisha.midia.exception.ForbiddenException;
 import com.trisha.midia.mapper.FileMapper;
+import com.trisha.midia.model.dto.response.FileContent;
 import com.trisha.midia.model.dto.response.FileResponse;
 import com.trisha.midia.model.enums.FileType;
 import com.trisha.midia.repository.MediaFileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -22,23 +24,38 @@ public class FileService {
     private final MinioService minioService;
     private final MediaFileRepository repository;
 
+    /** Base publica do proprio servico de Midia, usada para montar a URL do binario. */
+    @Value("${midia.public-url}")
+    private String publicBaseUrl;
+
     public FileResponse upload(MultipartFile file, FileType type, String ownerId) {
         log.info("Iniciando upload: {} ({})", file.getOriginalFilename(), type);
 
         validateFile(file, type);
 
         String storedName = extractStoredName(file.getOriginalFilename());
-        String url = minioService.upload(storedName, file);
+        minioService.upload(storedName, file);
 
-        MediaFile entity = FileMapper.toEntity(file, type, storedName, url, minioService.getBucket(), ownerId);
+        MediaFile entity = FileMapper.toEntity(file, type, storedName, minioService.getBucket(),
+                ownerId, publicBaseUrl);
         repository.save(entity);
 
         log.info("Arquivo salvo com id: {}", entity.getId());
-        return FileMapper.toResponse(entity);
+        return FileMapper.toResponse(entity, publicBaseUrl);
     }
 
     public FileResponse getById(String id) {
-        return FileMapper.toResponse(findById(id));
+        return FileMapper.toResponse(findById(id), publicBaseUrl);
+    }
+
+    /**
+     * Binario do arquivo, servido pelo proprio servico. E o que sustenta a URL
+     * permanente: o bucket fica privado e nada expira.
+     */
+    public FileContent download(String id) {
+        MediaFile file = findById(id);
+        return new FileContent(file.getContentType(), file.getSizeBytes(),
+                minioService.download(file.getStoredName()));
     }
 
     public void delete(String id, String userId) {

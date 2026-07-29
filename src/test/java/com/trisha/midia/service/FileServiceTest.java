@@ -1,18 +1,24 @@
 package com.trisha.midia.service;
 
 import com.trisha.midia.entity.MediaFile;
+import com.trisha.midia.model.dto.response.FileContent;
 import com.trisha.midia.model.dto.response.FileResponse;
 import com.trisha.midia.model.enums.FileType;
 import com.trisha.midia.repository.MediaFileRepository;
 import com.trisha.midia.stub.FileStub;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,17 +41,20 @@ class FileServiceTest {
     @InjectMocks
     private FileService service;
 
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(service, "publicBaseUrl", FileStub.PUBLIC_BASE_URL);
+    }
+
     @Test
     @DisplayName("upload deve validar, enviar ao MinIO e persistir metadados com o dono")
     void shouldUpload() {
         MultipartFile photo = FileStub.aPhoto();
-        when(minioService.upload(anyString(), any(MultipartFile.class))).thenReturn(FileStub.URL);
         when(minioService.getBucket()).thenReturn(FileStub.BUCKET);
         when(repository.save(any(MediaFile.class))).thenAnswer(inv -> inv.getArgument(0));
 
         FileResponse response = service.upload(photo, FileType.FOTO, FileStub.OWNER_ID);
 
-        assertThat(response.url()).isEqualTo(FileStub.URL);
         assertThat(response.type()).isEqualTo(FileType.FOTO);
         assertThat(response.originalName()).isEqualTo("foto.jpg");
         verify(minioService).upload(anyString(), any(MultipartFile.class));
@@ -53,10 +62,38 @@ class FileServiceTest {
     }
 
     @Test
+    @DisplayName("upload deve devolver URL permanente do proprio servico, sem assinatura nem prazo")
+    void shouldReturnPermanentUrl() {
+        // Regressao do bug de producao: a URL era uma presigned do MinIO com
+        // validade MAXIMA de 7 dias, persistida e copiada para Media.url e
+        // Region.coverUrl no APP — passado o prazo, toda foto do app quebrava.
+        when(minioService.getBucket()).thenReturn(FileStub.BUCKET);
+        when(repository.save(any(MediaFile.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        FileResponse response = service.upload(FileStub.aPhoto(), FileType.FOTO, FileStub.OWNER_ID);
+
+        assertThat(response.url())
+                .isEqualTo(FileStub.PUBLIC_BASE_URL + "/arquivo/" + response.id() + "/conteudo")
+                .doesNotContain("X-Amz-", "?");
+    }
+
+    @Test
+    @DisplayName("upload deve persistir a mesma URL permanente que devolve")
+    void shouldPersistPermanentUrl() {
+        when(minioService.getBucket()).thenReturn(FileStub.BUCKET);
+        when(repository.save(any(MediaFile.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        FileResponse response = service.upload(FileStub.aPhoto(), FileType.FOTO, FileStub.OWNER_ID);
+
+        ArgumentCaptor<MediaFile> captor = ArgumentCaptor.forClass(MediaFile.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getUrl()).isEqualTo(response.url());
+    }
+
+    @Test
     @DisplayName("upload deve aceitar video com content-type de video")
     void shouldAcceptVideo() {
         MultipartFile video = FileStub.aVideo();
-        when(minioService.upload(anyString(), any(MultipartFile.class))).thenReturn(FileStub.URL);
         when(minioService.getBucket()).thenReturn(FileStub.BUCKET);
         when(repository.save(any(MediaFile.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -117,6 +154,22 @@ class FileServiceTest {
     }
 
     @Test
+    @DisplayName("getById deve derivar a URL da base publica atual, ignorando a persistida")
+    void shouldDeriveUrlOnRead() {
+        // Registro antigo, gravado quando a URL ainda era uma presigned do MinIO
+        // apontando para o host interno. Como a leitura deriva do id, ele volta a
+        // funcionar sem migracao de dados — e trocar de dominio tambem nao quebra.
+        MediaFile legado = FileStub.aFile()
+                .url("http://minio:9000/trilha-midia/uuid-gerado.jpg?X-Amz-Expires=604800")
+                .build();
+        when(repository.findById(FileStub.ID)).thenReturn(Optional.of(legado));
+
+        FileResponse response = service.getById(FileStub.ID);
+
+        assertThat(response.url()).isEqualTo(FileStub.URL);
+    }
+
+    @Test
     @DisplayName("getById deve falhar quando arquivo nao existe")
     void shouldFailGetByIdMissing() {
         when(repository.findById("inexistente")).thenReturn(Optional.empty());
@@ -124,6 +177,33 @@ class FileServiceTest {
         assertThatThrownBy(() -> service.getById("inexistente"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Arquivo nao encontrado");
+    }
+
+    @Test
+    @DisplayName("download deve devolver o binario com content-type e tamanho")
+    void shouldDownload() {
+        MediaFile file = FileStub.aFile().build();
+        InputStream stream = new ByteArrayInputStream("conteudo-imagem".getBytes());
+        when(repository.findById(FileStub.ID)).thenReturn(Optional.of(file));
+        when(minioService.download(file.getStoredName())).thenReturn(stream);
+
+        FileContent content = service.download(FileStub.ID);
+
+        assertThat(content.contentType()).isEqualTo("image/jpeg");
+        assertThat(content.sizeBytes()).isEqualTo(1024L);
+        assertThat(content.stream()).isSameAs(stream);
+    }
+
+    @Test
+    @DisplayName("download deve falhar quando arquivo nao existe")
+    void shouldFailDownloadMissing() {
+        when(repository.findById("inexistente")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.download("inexistente"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Arquivo nao encontrado");
+
+        verify(minioService, never()).download(anyString());
     }
 
     @Test

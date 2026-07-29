@@ -1,10 +1,16 @@
 package com.trisha.midia.controller;
 
 import com.trisha.midia.auth.AuthenticatedUser;
+import com.trisha.midia.model.dto.response.FileContent;
 import com.trisha.midia.model.dto.response.FileResponse;
 import com.trisha.midia.model.enums.FileType;
 import com.trisha.midia.service.FileService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.time.Duration;
 
 @RestController
 @RequestMapping("/arquivo")
@@ -31,6 +39,24 @@ public class FileController {
     @GetMapping("/{id}")
     public FileResponse getById(@PathVariable String id) {
         return fileService.getById(id);
+    }
+
+    /**
+     * Binario do arquivo. Publico de proposito: e a URL que vai em
+     * {@code <img src>} do front, e tag de imagem nao manda Bearer. O id e um
+     * UUID opaco — mesmo nivel de protecao da presigned URL que este endpoint
+     * substitui, com a diferenca de que aqui nada expira.
+     */
+    @GetMapping("/{id}/conteudo")
+    public ResponseEntity<Resource> content(@PathVariable String id) {
+        FileContent content = fileService.download(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(content.contentType()))
+                .contentLength(content.sizeBytes())
+                // O conteudo de um id nunca muda (nome no bucket e UUID novo a
+                // cada upload), entao o cache pode ser agressivo.
+                .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable())
+                .body(new InputStreamResource(content.stream()));
     }
 
     @DeleteMapping("/{id}")

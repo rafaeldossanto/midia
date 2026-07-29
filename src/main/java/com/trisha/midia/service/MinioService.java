@@ -1,10 +1,9 @@
 package com.trisha.midia.service;
 
-import io.minio.GetPresignedObjectUrlArgs;
+import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
-import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
-import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -26,7 +24,7 @@ public class MinioService {
     private String bucket;
 
     @SneakyThrows
-    public String upload(String storedName, MultipartFile file) {
+    public void upload(String storedName, MultipartFile file) {
         try (InputStream inputStream = file.getInputStream()) {
             minioClient.putObject(
                     PutObjectArgs.builder()
@@ -37,18 +35,25 @@ public class MinioService {
                             .build()
             );
 
-            String url = minioClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .bucket(bucket)
-                            .object(storedName)
-                            .method(Method.GET)
-                            .expiry(7, TimeUnit.DAYS)
-                            .build()
-            );
-
             log.info("Arquivo {} enviado ao MinIO com sucesso", storedName);
-            return url;
         }
+    }
+
+    /**
+     * Abre o objeto para leitura. O binario e servido pelo proprio servico
+     * (GET /arquivo/{id}/conteudo), entao o bucket permanece privado e a URL
+     * publicada nao carrega assinatura nem prazo de validade.
+     * <p>
+     * Quem chama e dono do stream e precisa fecha-lo.
+     */
+    @SneakyThrows
+    public InputStream download(String storedName) {
+        return minioClient.getObject(
+                GetObjectArgs.builder()
+                        .bucket(bucket)
+                        .object(storedName)
+                        .build()
+        );
     }
 
     @SneakyThrows

@@ -3,6 +3,7 @@ package com.trisha.midia.auth;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -16,9 +17,10 @@ import java.util.List;
 /**
  * Resource server stateless. Como a Midia e exposta direto ao front (upload nao
  * passa pelo BFF), validar o Bearer aqui e essencial. Tudo exige autenticacao,
- * exceto health. O CORS libera as origens do front web configuradas em
- * cors.allowed-origins (dev: localhost; prod: dominio real via
- * CORS_ALLOWED_ORIGINS).
+ * exceto health e a leitura do binario (GET /arquivo/{id}/conteudo), que precisa
+ * ser publica para funcionar em &lt;img src&gt;. O CORS libera as origens do front
+ * web configuradas em cors.allowed-origins (dev: localhost; prod: dominio real
+ * via CORS_ALLOWED_ORIGINS).
  */
 @Configuration
 public class SecurityConfig {
@@ -37,6 +39,11 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health").permitAll()
+                        // O binario e servido publicamente: e a URL que vai no
+                        // <img src> do front, e tag de imagem nao manda Bearer.
+                        // Protegido pelo id opaco (UUID), como era a presigned URL
+                        // que este endpoint substituiu.
+                        .requestMatchers(HttpMethod.GET, "/arquivo/*/conteudo").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
         return http.build();
